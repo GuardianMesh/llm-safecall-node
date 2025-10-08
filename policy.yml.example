@@ -1,0 +1,14 @@
+block_secrets: true
+redact_secrets: true
+allow_shell_output: false
+outbound_url_allowlist:
+  - "https://docs.company.com/"
+  - "https://intranet.company.com/"
+json_only_when_schema: true
+max_output_chars: 10000
+max_input_chars: 20000
+forbid_injection_phrases:
+  - "ignore previous instructions"
+  - "reveal the system prompt"
+  - "exfiltrate"
+  - "base64 encode the following secrets"

@@ -1,0 +1,1 @@
+{ "name": "llm-safecall-node", "build": { "dockerfile": "Dockerfile" }, "postCreateCommand": "npm i && npm run build" }
