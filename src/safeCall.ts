@@ -152,6 +152,6 @@ export class SafeCall<T = unknown> {
         let safe = ''; try { safe = this.policy.postCall(chunk, false); } catch { safe = ''; }
         yield safe;
       }
-    } catch { if (this.failSafe) { yield this.failSafeReturn; return; } throw; }
+    } catch (e) { if (this.failSafe) { yield this.failSafeReturn; return; } throw e; }
   }
 }
