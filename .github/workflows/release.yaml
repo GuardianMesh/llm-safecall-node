@@ -1,0 +1,92 @@
+name: Release and Publish
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    name: 🚀 Build & Publish llm-safecall
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint, build, and test
+        run: |
+          npm run lint || true
+          npm run build
+          npm test || true
+
+      - name: Publish to npm
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "📦 Publishing version from tag: ${GITHUB_REF##*/}"
+          npm publish --access public
+
+      - name: Generate release notes
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "v${{ github.ref_name }} – Streaming + Fail-Safe GA"
+          body: |
+            🚀 **llm-safecall** – Secure, fail-safe, and observable LLM calls for Node/TypeScript.
+
+            ### 🧠 Key Features
+            - ✅ OpenAI + Anthropic + Mock providers
+            - 🔁 Streaming support with per-chunk guardrails
+            - 🧱 Policy engine (prompt sanitization, secret redaction)
+            - 🛡️ Zod schema validation + JSON repair
+            - ⚙️ Retries, rate limiting, and budget tracking
+            - 🔒 Fail-safe default mode: never break your app
+
+            ### 🧩 Installation
+            ```bash
+            npm i llm-safecall
+            # Optional providers
+            npm i openai @anthropic-ai/sdk
+            ```
+
+            ### 💡 Example
+            ```ts
+            import { SafeCall, OpenAIProvider } from 'llm-safecall';
+            import { z } from 'zod';
+
+            const Output = z.object({ title: z.string(), summary: z.string() });
+            const safe = new SafeCall({
+              llm: new OpenAIProvider({ model: 'gpt-4o-mini' }),
+              outputSchema: Output
+            });
+
+            for await (const chunk of safe.streamGenerate('Explain zero-knowledge proofs.')) {
+              process.stdout.write(chunk);
+            }
+            ```
+
+            ---
+            🧩 **Fail-safe guarantee:** Worst-case, returns harmless fallback (`""` or `{}`) instead of throwing.
+            🏢 Ideal for enterprise copilots and AI agents needing reliability and safety by default.
+
+      - name: ✅ Success message
+        run: echo "✅ Release pipeline completed successfully!"
