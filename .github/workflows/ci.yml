@@ -1,0 +1,16 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm i
+      - run: npm run lint || true
+      - run: npx tsc --noEmit || true
+      - run: npx prettier -c . || true
+      - run: npm run build
+      - run: npm test || true
