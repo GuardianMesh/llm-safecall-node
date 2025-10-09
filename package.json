@@ -1,6 +1,6 @@
 {
   "name": "llm-safecall",
-  "version": "0.3.2",
+  "version": "0.3.4",
   "description": "Secure, fail-safe, and observable LLM calls in Node/TypeScript with policy guardrails, secret scanning, streaming, and schema validation (zod).",
   "license": "MIT",
   "type": "module",
