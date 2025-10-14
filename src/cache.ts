@@ -3,6 +3,13 @@ import { createHash } from 'node:crypto';
 import { fileExists } from './utils';
 import { logJson } from './logger';
 
+export class CacheError extends Error {
+  constructor(message: string, public cause?: unknown) {
+    super(message);
+    this.name = 'CacheError';
+  }
+}
+
 export interface CacheOptions {
   filePath?: string;
   ttlMs?: number;
@@ -21,19 +28,23 @@ export class Cache {
     this.maxSize = opts.maxSize ?? 1000;
     this.lockFile = `${this.filePath}.lock`;
     this.initializeCache().catch(err => {
-      logJson('cache_init_error', { error: err.message });
+      if (err instanceof Error) {
+        logJson('cache_init_error', { error: err.message });
+      }
     });
   }
 
-  private async initializeCache() {
+  private async initializeCache(): Promise<void> {
     try {
       const exists = await fileExists(this.filePath);
       if (!exists) {
         await fs.writeFile(this.filePath, '{}', 'utf-8');
       }
     } catch (error) {
-      logJson('cache_init_error', { error: error.message });
-      throw error;
+      if (error instanceof Error) {
+        logJson('cache_init_error', { error: error.message });
+      }
+      throw new CacheError('Failed to initialize cache', error);
     }
   }
 
