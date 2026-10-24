@@ -2,6 +2,7 @@
 
 ## 0.4.0 — unreleased
 
+- Scan email redaction candidates in linear time so long malformed prompts cannot stall the caller.
 - **Breaking:** Require Zod 4 schemas for `outputSchema` and `ToolRunner`. Consumers using Zod 3 must upgrade their direct dependency to `zod@^4.6.7` and migrate their schemas before upgrading to 0.4.0. These changes have not been published.
 - Validate retry and timeout options, enforce the configured retry count, and disable hidden SDK retries.
 - Apply policy and moderation to decoded JSON and transformed schema values; recheck tool fallback defaults.
