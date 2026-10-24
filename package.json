@@ -52,7 +52,7 @@
     "access": "public"
   },
   "dependencies": {
-    "commander": "^12.1.0",
+    "commander": "^15.0.0",
     "yaml": "^2.5.1",
     "zod": "^4.6.7"
   },
