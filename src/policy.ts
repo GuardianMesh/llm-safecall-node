@@ -1,6 +1,7 @@
 import { PolicyViolationError } from './types';
 import { scanSecrets, redactFindings } from './secrets';
 import { stripCodeBlocks, stripDangerousCommands, allowlistUrls } from './sanitize';
+import { z } from 'zod';
 
 const DEFAULT_SIGNS = [
   'ignore previous instructions',
@@ -10,7 +11,7 @@ const DEFAULT_SIGNS = [
   'exfiltrate',
   'send to http',
   'upload to',
-  'base64 encode the following secrets'
+  'base64 encode the following secrets',
 ];
 
 export type PolicyConfig = {
@@ -24,29 +25,55 @@ export type PolicyConfig = {
   forbidInjectionPhrases?: string[];
 };
 
+const policySchema = z
+  .object({
+    blockSecrets: z.boolean().optional(),
+    redactSecrets: z.boolean().optional(),
+    allowShellOutput: z.boolean().optional(),
+    outboundUrlAllowlist: z.array(z.string()).optional(),
+    jsonOnlyWhenSchema: z.boolean().optional(),
+    maxOutputChars: z.number().int().positive().optional(),
+    maxInputChars: z.number().int().positive().optional(),
+    forbidInjectionPhrases: z.array(z.string().min(1)).optional(),
+  })
+  .strict();
+
 export class PolicyEngine {
-  constructor(private cfg: PolicyConfig = {}) {}
+  private cfg: PolicyConfig;
+  constructor(cfg: PolicyConfig = {}) {
+    this.cfg = policySchema.parse(cfg);
+  }
+
+  get maxInputChars(): number {
+    return this.cfg.maxInputChars ?? 20000;
+  }
+
+  get maxOutputChars(): number {
+    return this.cfg.maxOutputChars ?? 10000;
+  }
 
   preCall(prompt: string): string {
     const maxIn = this.cfg.maxInputChars ?? 20000;
     if (prompt.length > maxIn) throw new PolicyViolationError(`Prompt too long (>${maxIn})`);
     const lowered = prompt.toLowerCase();
     for (const phrase of this.cfg.forbidInjectionPhrases ?? DEFAULT_SIGNS) {
-      if (lowered.includes(phrase)) throw new PolicyViolationError('Prompt contains injection markers');
+      if (lowered.includes(phrase.toLowerCase()))
+        throw new PolicyViolationError('Prompt contains injection markers');
     }
     if (this.cfg.blockSecrets ?? true) {
       const findings = scanSecrets(prompt);
       if (findings.length) {
-        if (this.cfg.redactSecrets ?? true) return redactFindings(prompt, findings);
-        throw new PolicyViolationError('Secrets detected in prompt');
+        if (this.cfg.redactSecrets ?? true) prompt = redactFindings(prompt, findings);
+        else throw new PolicyViolationError('Secrets detected in prompt');
       }
     }
+    if (prompt.length > maxIn) throw new PolicyViolationError(`Prompt too long (>${maxIn})`);
     return prompt;
   }
 
   postCall(text: string, schemaExpected: boolean): string {
     const outMax = this.cfg.maxOutputChars ?? 10000;
-    if (text.length > outMax) text = text.slice(0, outMax) + '...[TRUNCATED]';
+    if (text.length > outMax) throw new PolicyViolationError(`Output too long (>${outMax})`);
     if (this.cfg.blockSecrets ?? true) {
       const findings = scanSecrets(text);
       if (findings.length) {
@@ -58,9 +85,12 @@ export class PolicyEngine {
     text = stripDangerousCommands(text, this.cfg.allowShellOutput ?? false);
     text = allowlistUrls(text, this.cfg.outboundUrlAllowlist ?? []);
 
+    if (text.length > outMax) throw new PolicyViolationError(`Output too long (>${outMax})`);
+
     if (schemaExpected && (this.cfg.jsonOnlyWhenSchema ?? true)) {
       const s = text.trim();
-      if (!(s.startsWith('{') || s.startsWith('['))) throw new PolicyViolationError('Non-JSON output when JSON schema expected');
+      if (!(s.startsWith('{') || s.startsWith('[')))
+        throw new PolicyViolationError('Non-JSON output when JSON schema expected');
     }
     return text;
   }
