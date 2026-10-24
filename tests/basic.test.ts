@@ -9,5 +9,7 @@ describe('happy path', () => {
     const safe = new SafeCall({ llm: new MockProvider(), outputSchema: Output });
     const res = await safe.generate('say hi as json');
     expect(res.report.latencyMs).toBeGreaterThanOrEqual(0);
+    expect(res.report.model).toBe('mock-1');
+    expect(res.value).toEqual({ ok: true });
   });
 });

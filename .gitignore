@@ -20,3 +20,6 @@ service-account.json
 .llm_safecall_cache.json
 .llm_safecall_budget.json
 policy.local.yml
+
+*.tgz
+!.env.example

@@ -7,6 +7,7 @@ export type ProviderResponse = {
 };
 
 export interface Provider {
+  model?: string;
   complete(prompt: string, params?: Record<string, unknown>): Promise<ProviderResponse>;
   stream(prompt: string, params?: Record<string, unknown>): AsyncIterable<string>;
 }

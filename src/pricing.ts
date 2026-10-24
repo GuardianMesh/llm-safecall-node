@@ -1,6 +1,7 @@
+// Example rates in USD per 1,000 tokens; replace with your provider's rates.
 export const PRICING: Record<string, { input: number; output: number }> = {
-  "openai:gpt-4o-mini": { input: 0.0003, output: 0.0012 },
-  "anthropic:claude-3-5-sonnet-20240620": { input: 0.003, output: 0.015 }
+  'openai:gpt-4o-mini': { input: 0.0003, output: 0.0012 },
+  'anthropic:claude-3-5-sonnet-20240620': { input: 0.003, output: 0.015 },
 };
 export function estimateCost(vendorModel: string, inTok?: number, outTok?: number) {
   const p = PRICING[vendorModel];
