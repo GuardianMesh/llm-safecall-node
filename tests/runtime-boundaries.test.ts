@@ -25,7 +25,7 @@ function file() {
   return join(directory, 'budget.json');
 }
 
-it.each([-1, NaN, Infinity, 1.5, Number.MAX_SAFE_INTEGER + 1])(
+it.each([-1, 11, NaN, Infinity, 1.5, Number.MAX_SAFE_INTEGER + 1])(
   'rejects invalid retries %s',
   (retries) => {
     expect(() => new SafeCall({ llm: new MockProvider(), retries })).toThrow(/retries/);
@@ -448,12 +448,12 @@ it('rejects oversized output without returning a secret prefix', async () => {
   const safe = new SafeCall({ llm, policy, failSafe: false });
   await expect(safe.generate('Hello')).rejects.toThrow('Output too long');
   expect(complete).toHaveBeenCalledTimes(1);
-  const fallback = await new SafeCall({ llm, policy }).generate('Hello');
+  const fallback = await new SafeCall({ llm, policy, failSafe: true }).generate('Hello');
   expect(fallback.value).toBe('');
 });
 
 it('checks result-schema defaults even after a tool fails', async () => {
-  const runner = new ToolRunner(new PolicyEngine({ redactSecrets: false }));
+  const runner = new ToolRunner(new PolicyEngine({ redactSecrets: false }), true);
   runner.register(
     'failure',
     () => {

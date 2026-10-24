@@ -9,7 +9,7 @@ export class TokenBucket {
       throw new RangeError('ratePerSec must be positive and finite');
     }
     this.rate = ratePerSec;
-    this.capacity = capacity ?? ratePerSec;
+    this.capacity = capacity ?? Math.max(1, ratePerSec);
     if (!Number.isFinite(this.capacity) || this.capacity <= 0) {
       throw new RangeError('capacity must be positive and finite');
     }

@@ -17,9 +17,9 @@ import { logJson } from './logger';
 import { newCallId } from './ids';
 import { checkValue, verifyValue } from './values';
 
-export type SafeCallParams = {
+export type SafeCallParams<T = unknown> = {
   llm: Provider;
-  outputSchema?: z.ZodTypeAny;
+  outputSchema?: z.ZodType<T>;
   policy?: PolicyEngine;
   moderation?: boolean;
   timeoutMs?: number;
@@ -35,9 +35,9 @@ export type SafeCallParams = {
   failSafeReturn?: string;
 };
 
-export class SafeCall<T = unknown> {
+export class SafeCall<T = string> {
   private llm: Provider;
-  private outputSchema?: z.ZodTypeAny;
+  private outputSchema?: z.ZodType<T>;
   private schemaInstruction = '';
   private policy: PolicyEngine;
   private moderation: boolean;
@@ -54,7 +54,25 @@ export class SafeCall<T = unknown> {
   private failSafe: boolean;
   private failSafeReturn: string;
 
-  constructor(opts: SafeCallParams) {
+  constructor(opts: SafeCallParams<T>) {
+    if (typeof opts.llm?.complete !== 'function' || typeof opts.llm?.stream !== 'function') {
+      throw new TypeError('llm must implement complete() and stream()');
+    }
+    for (const field of ['moderation', 'failSafe'] as const) {
+      if (opts[field] !== undefined && typeof opts[field] !== 'boolean') {
+        throw new TypeError(`${field} must be a boolean`);
+      }
+    }
+    if (opts.failSafeReturn !== undefined && typeof opts.failSafeReturn !== 'string') {
+      throw new TypeError('failSafeReturn must be a string');
+    }
+    if (
+      opts.redact !== undefined &&
+      (!Array.isArray(opts.redact) ||
+        opts.redact.some((field) => !['email', 'phone'].includes(field)))
+    ) {
+      throw new TypeError('redact must contain only email and/or phone');
+    }
     this.llm = opts.llm;
     this.outputSchema = opts.outputSchema;
     if (this.outputSchema) {
@@ -66,13 +84,13 @@ export class SafeCall<T = unknown> {
     this.moderation = opts.moderation ?? true;
     this.timeoutMs = opts.timeoutMs ?? 20000;
     this.retries = opts.retries ?? 2;
-    if (!Number.isSafeInteger(this.retries) || this.retries < 0) {
-      throw new RangeError('retries must be a nonnegative safe integer');
+    if (!Number.isSafeInteger(this.retries) || this.retries < 0 || this.retries > 10) {
+      throw new RangeError('retries must be an integer from 0 to 10');
     }
     if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs <= 0) {
       throw new RangeError('timeoutMs must be a positive safe integer');
     }
-    this.redact = opts.redact ?? [];
+    this.redact = [...(opts.redact ?? [])];
     this.cache = opts.cache ?? new Cache();
     this.budget = opts.budget;
     this.rateLimit = opts.rateLimit;
@@ -82,7 +100,7 @@ export class SafeCall<T = unknown> {
       maxTokens: opts.maxTokens ?? 512,
       model: opts.llm.model ?? opts.model,
     };
-    this.failSafe = opts.failSafe ?? true;
+    this.failSafe = opts.failSafe ?? false;
     this.failSafeReturn = opts.failSafeReturn ?? '';
   }
 
@@ -96,7 +114,14 @@ export class SafeCall<T = unknown> {
     this.failures++;
   }
 
+  resetCircuit(): void {
+    this.success();
+  }
+
   private preparePrompt(prompt: string): string {
+    if (typeof prompt !== 'string') throw new TypeError('Prompt must be a string');
+    if (prompt.length > this.policy.maxInputChars)
+      throw new PolicyViolationError('Prompt too long');
     prompt += this.schemaInstruction;
     const cleaned = redactEmailPhone(prompt, this.redact);
     if (this.moderation) checkInput(cleaned);
@@ -121,6 +146,9 @@ export class SafeCall<T = unknown> {
         const permanent =
           e instanceof TypeError ||
           e instanceof RangeError ||
+          e instanceof PolicyViolationError ||
+          e instanceof BudgetExceededError ||
+          e instanceof RateLimitExceededError ||
           (e as Error)?.name === 'AbortError' ||
           code === 'ERR_MODULE_NOT_FOUND' ||
           code === 'MODULE_NOT_FOUND' ||
@@ -174,7 +202,7 @@ export class SafeCall<T = unknown> {
     return result;
   }
 
-  private async core(prompt: string): Promise<SafeResult<any>> {
+  private async core(prompt: string): Promise<SafeResult<T | string>> {
     const callId = newCallId();
     if (this.circuitOpen()) throw new CircuitOpenError('Circuit open due to recent failures');
     const cleaned = this.preparePrompt(prompt);
@@ -190,7 +218,8 @@ export class SafeCall<T = unknown> {
       try {
         const text = this.policy.postCall(cached.text, false);
         if (this.moderation) checkOutput(text);
-        const value = this.outputSchema ? this.parseOutput(text) : text;
+        const value = this.outputSchema ? (this.parseOutput(text) as T) : text;
+        this.success();
         logJson('cache_hit', { callId });
         return this.attachReport(value, { ...cached.report });
       } catch {
@@ -198,65 +227,65 @@ export class SafeCall<T = unknown> {
       }
     }
 
-    const t0 = Date.now();
+    const t0 = performance.now();
     const responses: ProviderResponse[] = [];
     let text = '';
     try {
       logJson('llm_call_start', { callId, model: (this.params.model as string) ?? undefined });
       const resp = await this.callWithRetry(cleaned, responses);
-      this.success();
       text = resp.text;
+
+      let value: T | string;
+      for (let repairs = 0; ; repairs++) {
+        try {
+          text = this.policy.postCall(text, false);
+          if (this.moderation) checkOutput(text);
+          value = this.outputSchema ? (this.parseOutput(text) as T) : text;
+          break;
+        } catch (error) {
+          if (
+            !this.outputSchema ||
+            repairs >= 1 ||
+            !(error instanceof SyntaxError || error instanceof z.ZodError)
+          )
+            throw error;
+          const repair = `Repair this to valid JSON ONLY for the expected schema. Respond only JSON:\n${text}`;
+          const rep = await this.callWithRetry(this.preparePrompt(repair), responses);
+          text = rep.text;
+        }
+      }
+
+      const sum = (field: 'cost' | 'inputTokens' | 'outputTokens') =>
+        responses.every((response) => response[field] !== undefined)
+          ? responses.reduce((total, response) => total + response[field]!, 0)
+          : undefined;
+      const dt = performance.now() - t0;
+      const report: CallReport = {
+        latencyMs: dt,
+        model: responses.at(-1)?.model ?? (this.params.model as string | undefined),
+        inputTokens: sum('inputTokens'),
+        outputTokens: sum('outputTokens'),
+        costEstimate: sum('cost'),
+      };
+      const out = this.attachReport(value, report);
+      this.cache.set(key, { text, report: { ...report } });
+      this.success();
+      logJson('llm_call_end', { callId, latencyMs: dt });
+      return out;
     } catch (e) {
       if (!(e instanceof BudgetExceededError) && !(e instanceof RateLimitExceededError))
         this.failure();
       logJson('llm_call_error', { callId, error: (e as Error)?.name ?? 'Error' });
       throw e;
     }
-
-    let value: unknown;
-    for (let repairs = 0; ; repairs++) {
-      try {
-        text = this.policy.postCall(text, false);
-        if (this.moderation) checkOutput(text);
-        value = this.outputSchema ? this.parseOutput(text) : text;
-        break;
-      } catch (error) {
-        if (
-          !this.outputSchema ||
-          repairs >= 1 ||
-          !(error instanceof SyntaxError || error instanceof z.ZodError)
-        )
-          throw error;
-        const repair = `Repair this to valid JSON ONLY for the expected schema. Respond only JSON:\n${text}`;
-        const rep = await this.callWithRetry(this.preparePrompt(repair), responses);
-        text = rep.text;
-      }
-    }
-
-    const sum = (field: 'cost' | 'inputTokens' | 'outputTokens') =>
-      responses.every((response) => response[field] !== undefined)
-        ? responses.reduce((total, response) => total + response[field]!, 0)
-        : undefined;
-    const dt = Date.now() - t0;
-    const report: CallReport = {
-      latencyMs: dt,
-      model: responses.at(-1)?.model ?? (this.params.model as string | undefined),
-      inputTokens: sum('inputTokens'),
-      outputTokens: sum('outputTokens'),
-      costEstimate: sum('cost'),
-    };
-    const out = this.attachReport(value, report);
-    this.cache.set(key, { text, report: { ...report } });
-    logJson('llm_call_end', { callId, latencyMs: dt });
-    return out;
   }
 
-  async generate(prompt: string): Promise<SafeResult<T | string | Record<string, never>>> {
+  async generate(prompt: string): Promise<SafeResult<T | string>> {
     if (!this.failSafe) return this.core(prompt);
     try {
       return await this.core(prompt);
     } catch {
-      return this.attachReport(this.outputSchema ? {} : this.failSafeReturn, {
+      return this.attachReport(this.failSafeReturn, {
         latencyMs: 0,
         model: (this.params.model as string) ?? undefined,
       });
@@ -264,6 +293,7 @@ export class SafeCall<T = unknown> {
   }
 
   async *streamGenerate(prompt: string): AsyncGenerator<string> {
+    let started = false;
     try {
       if (this.circuitOpen()) {
         if (this.failSafe) {
@@ -275,6 +305,7 @@ export class SafeCall<T = unknown> {
       const cleaned = this.preparePrompt(prompt);
       this.budget?.assertAvailable();
       this.rateLimit?.take(1);
+      started = true;
       let received = 0;
       let emitted = 0;
       for await (const chunk of this.llm.stream(cleaned, this.params)) {
@@ -289,7 +320,10 @@ export class SafeCall<T = unknown> {
           throw new PolicyViolationError('Stream exceeds output limit');
         yield safe;
       }
+      this.success();
     } catch (e) {
+      if (started && !(e instanceof BudgetExceededError) && !(e instanceof RateLimitExceededError))
+        this.failure();
       if (this.failSafe) {
         yield this.failSafeReturn;
         return;

@@ -9,11 +9,16 @@ export function checkValue(
   const ancestors = new Set<object>();
   let nodes = 0;
   let characters = 0;
+  let filteredCharacters = 0;
   function text(value: string): string {
     characters += value.length;
     if (characters > Math.min(maxTextChars, 1_048_576))
       throw new PolicyViolationError('Structured data exceeds the text limit');
-    return check(value);
+    const filtered = check(value);
+    filteredCharacters += filtered.length;
+    if (filteredCharacters > Math.min(maxTextChars, 1_048_576))
+      throw new PolicyViolationError('Structured data exceeds the text limit');
+    return filtered;
   }
   function visit(value: unknown, depth: number): unknown {
     if (++nodes > 10_000 || depth > 64)

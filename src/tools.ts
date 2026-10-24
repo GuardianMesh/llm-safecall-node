@@ -5,7 +5,7 @@ export class ToolRunner {
   private registry = new Map<string, { fn: Function; args?: ZodSchema; result?: ZodSchema }>();
   constructor(
     private policy: PolicyEngine,
-    private failSafe: boolean = true,
+    private failSafe: boolean = false,
   ) {}
   register(name: string, fn: Function, args?: ZodSchema, result?: ZodSchema) {
     this.registry.set(name, { fn, args, result });

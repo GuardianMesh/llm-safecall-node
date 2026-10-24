@@ -63,10 +63,11 @@ export class PolicyEngine {
     if (this.cfg.blockSecrets ?? true) {
       const findings = scanSecrets(prompt);
       if (findings.length) {
-        if (this.cfg.redactSecrets ?? true) return redactFindings(prompt, findings);
-        throw new PolicyViolationError('Secrets detected in prompt');
+        if (this.cfg.redactSecrets ?? true) prompt = redactFindings(prompt, findings);
+        else throw new PolicyViolationError('Secrets detected in prompt');
       }
     }
+    if (prompt.length > maxIn) throw new PolicyViolationError(`Prompt too long (>${maxIn})`);
     return prompt;
   }
 

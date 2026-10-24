@@ -4,7 +4,7 @@ import { AnthropicProvider } from './providers/anthropic';
 import { MockProvider } from './providers/mock';
 import { PolicyEngine } from './policy';
 
-export function fromEnv(opts: Omit<SafeCallParams, 'llm' | 'model'> = {}) {
+export function fromEnv<T = string>(opts: Omit<SafeCallParams<T>, 'llm' | 'model'> = {}) {
   const provider = (process.env.LLM_PROVIDER ?? 'openai').toLowerCase();
   if (!['openai', 'anthropic', 'mock'].includes(provider)) {
     throw new Error('LLM_PROVIDER must be openai, anthropic, or mock');

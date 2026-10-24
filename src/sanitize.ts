@@ -8,6 +8,15 @@ export function stripCodeBlocks(text: string, allowShell: boolean) {
 export function stripDangerousCommands(text: string, allowShell: boolean) {
   return allowShell ? text : text.replace(DANGEROUS_CMD, '[REDACTED_SHELL_CMD]');
 }
+function safePath(url: string): boolean {
+  // URL normalizes dot segments before exposing pathname, so inspect the source path.
+  const path = /^[a-z][a-z\d+.-]*:\/\/[^/?#]*([^?#]*)/i.exec(url)?.[1];
+  return (
+    path !== undefined &&
+    !AMBIGUOUS_PATH.test(path) &&
+    !path.split('/').some((segment) => segment === '.' || segment === '..')
+  );
+}
 export function allowlistUrls(text: string, allowlist: string[]) {
   if (!allowlist.length) return text;
   return text.replace(URL_RE, (url) => {
@@ -22,8 +31,8 @@ export function allowlistUrls(text: string, allowlist: string[]) {
           !base.password &&
           !url.includes('\\') &&
           !prefix.includes('\\') &&
-          !AMBIGUOUS_PATH.test(target.pathname) &&
-          !AMBIGUOUS_PATH.test(base.pathname) &&
+          safePath(url) &&
+          safePath(prefix) &&
           target.origin === base.origin &&
           (target.pathname === base.pathname ||
             target.pathname.startsWith(base.pathname.replace(/\/$/, '') + '/')) &&

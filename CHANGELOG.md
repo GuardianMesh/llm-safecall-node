@@ -1,9 +1,17 @@
 # Changelog
 
-## 0.4.0 — unreleased
+## 0.4.0 — 2026-10-24
 
+- **Breaking:** Raise errors by default in `SafeCall`, `fromEnv`, and `ToolRunner`. Explicit generation fallbacks now return the configured string even with a schema; the unvalidated `{}` fallback is removed.
+- Infer result types from Zod schemas, including transformed output, and expose the possible string fallback.
+- Count rejected output, failed repairs, and failed streams in the circuit; add `resetCircuit()` and cap retries at 10.
+- Merge overlapping secret matches, bound scanning work, and reject URL dot segments before normalization.
+- Enforce character limits after redaction expands text and admit fractional request rates.
+- Keep closed stderr pipes from crashing callers and omit raw exception messages from CLI diagnostics.
+- Remove example prices; cost estimates require configured rates and complete token usage.
+- Shorten the quick start and move exact behavior and migration details into reference docs.
 - Scan email redaction candidates in linear time so long malformed prompts cannot stall the caller.
-- **Breaking:** Require Zod 4 schemas for `outputSchema` and `ToolRunner`. Consumers using Zod 3 must upgrade their direct dependency to `zod@^4.6.7` and migrate their schemas before upgrading to 0.4.0. These changes have not been published.
+- **Breaking:** Require Zod 4 schemas for `outputSchema` and `ToolRunner`. Consumers using Zod 3 must upgrade their direct dependency to `zod@^4.6.7` and migrate their schemas before upgrading to 0.4.0.
 - Validate retry and timeout options, enforce the configured retry count, and disable hidden SDK retries.
 - Apply policy and moderation to decoded JSON and transformed schema values; recheck tool fallback defaults.
 - Send JSON Schema guidance with model requests and limit repair to one JSON/schema failure.
