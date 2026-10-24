@@ -25,10 +25,10 @@
   "dependencies": {
     "commander": "^12.1.0",
     "yaml": "^2.5.1",
-    "zod": "^3.23.8"
+    "zod": "^4.6.7"
   },
   "optionalDependencies": {
-    "openai": "^4.57.0",
+    "openai": "^7.43.0",
     "@anthropic-ai/sdk": "^0.32.0"
   },
   "devDependencies": {
