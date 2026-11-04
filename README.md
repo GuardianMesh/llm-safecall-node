@@ -1,7 +1,11 @@
 # llm-safecall
 
-Validate model responses with Zod, retry failed requests, and keep a call report.
+Validate LLM JSON responses with Zod, retry failed model calls, and keep a call report.
 Supports OpenAI, Anthropic, and custom providers on Node.js 22+.
+
+Try the [no-key response-validation walkthrough](https://github.com/GuardianMesh/llm-safecall-node/blob/main/docs/validated-responses.md)
+for verified examples of Zod validation, transient retries, schema repair and
+display-only fallback using the published package.
 
 Use it when several call sites need the same validation and error handling.
 If your application already handles those in a provider SDK or framework,
@@ -98,6 +102,16 @@ validation before anything is displayed or executed.
 
 The [behavior reference](https://github.com/GuardianMesh/llm-safecall-node/blob/main/docs/behavior.md)
 covers defaults, retries, streaming, tools, reports, budgets, caches, and the CLI.
+
+## Related packages
+
+Use [Agent Guard](https://github.com/ShieldaAI/agent-guard) when an agent also needs
+resource-scoped tool permissions, approvals and budgets. Use
+[Security Watch](https://github.com/ShieldaAI/security-watch) to monitor advisory
+evidence for a dependency inventory. The
+[package selection guide](https://github.com/ShieldaAI/agent-guard/blob/main/docs/package-guide.md)
+explains their separate roles. For Pydantic validation, see the
+[Python SafeCall package](https://github.com/GuardianMesh/llm-safecall).
 
 ## Development
 
