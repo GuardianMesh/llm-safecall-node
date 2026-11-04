@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -113,6 +113,11 @@ assert.equal((await fromEnv({ failSafe: false }).generate('Hello')).value, 'Mock
   );
   run([join(root, 'node_modules/typescript/bin/tsc'), '--project', 'tsconfig.json'], consumer);
   run(['compiled/consumer.mjs'], consumer);
+  writeFileSync(
+    join(consumer, 'validated-response.mjs'),
+    readFileSync(join(root, 'examples/validated-response.mjs')),
+  );
+  run(['validated-response.mjs'], consumer);
   const cli = join(consumer, 'node_modules/llm-safecall/dist/bin/cli.js');
   function command(args) {
     return spawnSync(process.execPath, [cli, ...args], {

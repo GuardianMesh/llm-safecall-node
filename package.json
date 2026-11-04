@@ -1,7 +1,7 @@
 {
   "name": "llm-safecall",
   "version": "0.4.0",
-  "description": "Policy checks, schema validation, retries, and logs for Node.js model calls.",
+  "description": "Validate LLM JSON responses with Zod, retry failed model calls and inspect call reports in Node.js.",
   "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
@@ -31,14 +31,15 @@
   },
   "keywords": [
     "llm",
-    "security",
-    "policy",
-    "guardrails",
+    "structured-output",
+    "json-validation",
+    "schema-validation",
     "zod",
-    "copilot",
-    "agent",
-    "safety",
-    "streaming"
+    "retries",
+    "typescript",
+    "nodejs",
+    "streaming",
+    "ai-agents"
   ],
   "repository": {
     "type": "git",
